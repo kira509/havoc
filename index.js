@@ -43,7 +43,7 @@ async function startHavocBot (attempt = 1) {38701209
   });
 
   // Try to fetch a Pair‑Code as soon as the socket is up
-  sock.ev.once('connection.update', async ({ connection }) => {
+  sock.ev.on('connection.update', async ({ connection }) => {
     if (connection !== 'open') return;
 
     try {

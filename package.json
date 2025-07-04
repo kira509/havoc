@@ -1,14 +1,15 @@
 {
-  "name": "havoc-bot",
+  "name": "havoc-whatsapp-bot",
   "version": "1.0.0",
+  "description": "Minimal WhatsApp bot (Havoc) with pair‑code login",
   "main": "index.js",
-  "type": "module",
   "scripts": {
     "start": "node index.js"
   },
+  "author": "Havoc Team",
+  "license": "MIT",
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.0",
-    "@hapi/boom": "^10.0.1",
-    "qrcode-terminal": "^0.12.0"
+    "@whiskeysockets/baileys": "^6.4.0",
+    "dotenv": "^16.0.3"
   }
 }

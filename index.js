@@ -1,66 +1,70 @@
-require('dotenv').config()
-const {
-  makeWASocket,
-  DisconnectReason,
-  useMultiFileAuthState
-} = require('@whiskeysockets/baileys')
-const fs = require('fs')
-const path = require('path')
+import makeWASocket, { DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import { Boom }                                              from '@hapi/boom';
+import fs                                                    from 'fs';
+import path                                                  from 'path';
+import { fileURLToPath }                                     from 'url';
+import process                                               from 'process';
 
-async function startHavocBot() {
-  // 1) ensure ./session dir exists
-  fs.mkdirSync(path.join(__dirname, 'session'), { recursive: true })
+// ── helpers ────────────────────────────────────────────────
+const __filename  = fileURLToPath(import.meta.url);
+const __dirname   = path.dirname(__filename);
+const SESSION_DIR = path.join(__dirname, 'session');
 
-  // 2) load & persist auth state
-  const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'session'))
+// Ensure session directory exists
+fs.mkdirSync(SESSION_DIR, { recursive: true });
 
-  // 3) create the socket
+// Put **your full international number** here, digits only, NO “+”
+const PHONE_NUMBER   = '254738701209';      // ←←← REPLACE ME
+const BOT_NAME       = 'HavocBot';
+const MAX_RETRIES    = 3;                   // don’t loop forever
+
+// ── main ───────────────────────────────────────────────────
+async function startHavocBot (attempt = 1) {38701209
+  console.log(`\n☢️  HavocBot – connect attempt ${attempt}/${MAX_RETRIES}`);
+
+  const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
   const sock = makeWASocket({
     auth: state,
-    browser: ['HavocBot', 'Chrome', '1.0.0']
-  })
+    printQRInTerminal: false,
+    browser: [BOT_NAME, 'Render', '1.0.0'],
+    connectTimeoutMs: 25_000
+  });
 
-  // 4) whenever creds update, save them
-  sock.ev.on('creds.update', saveCreds)
+  sock.ev.on('creds.update', saveCreds);
 
-  // 5) request a pair‑code (and ref) right away
-  try {
-    const { pairingCode, ref } = await sock.requestPairingCode()
-    console.log(`\n🔗 Your HavocBot Pair Code: ${pairingCode}`)
-    console.log(`   Reference       : ${ref}\n`)
-    console.log(`> Now open WhatsApp → Settings → Linked Devices → Link a device → Enter code above.`)
-  } catch (e) {
-    console.error('❌ Failed to get pair code:', e)
-  }
-
-  // 6) handle connection updates
+  // Display every reconnect/close reason
   sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
-    if (connection === 'open') {
-      console.log('✅ HavocBot connected!')
-    }
     if (connection === 'close') {
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
-      console.log('Connection closed.', shouldReconnect ? 'Reconnecting…' : 'Logged out.')
-      if (shouldReconnect) startHavocBot()
+      const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
+      console.log(`❌ Connection closed (${reason}).`);
     }
-  })
+  });
 
-  // 7) simple message handler
-  sock.ev.on('messages.upsert', async ({ messages }) => {
-    const msg = messages[0]
-    if (!msg.message || msg.key.fromMe) return
+  // Try to fetch a Pair‑Code as soon as the socket is up
+  sock.ev.once('connection.update', async ({ connection }) => {
+    if (connection !== 'open') return;
 
-    const from = msg.key.remoteJid
-    const text = msg.message.conversation
-               || msg.message.extendedTextMessage?.text
-               || ''
-
-    console.log('📥', from, '→', text)
-    if (text.toLowerCase() === '.ping') {
-      await sock.sendMessage(from, { text: '*Pong!!* HavocBot is alive ⚡' }, { quoted: msg })
+    try {
+      const { pairingCode, ref } = await sock.requestPairingCode(PHONE_NUMBER);
+      console.log('\n🔗 Your HavocBot Pair Code:', pairingCode);
+      console.log('   Reference       :', ref);
+      console.log(
+        '\n> On WhatsApp, open  Settings → Linked Devices → Link a device → “Enter code” and type the 6 digits above.'
+      );
+    } catch (err) {
+      console.error('❌ Failed to get pair code:', err.message || err);
+      if (attempt < MAX_RETRIES) {
+        // Wait 3 s and retry cleanly
+        setTimeout(() => startHavocBot(attempt + 1), 3_000);
+      } else {
+        console.error('❌ Max retries reached – exiting.');
+        process.exit(1);
+      }
     }
-  })
+  });
 }
 
-// kick things off
-startHavocBot()
+startHavocBot().catch(err => {
+  console.error('Fatal error:', err);
+  process.exit(1);
+});

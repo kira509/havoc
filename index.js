@@ -1,4 +1,6 @@
-import makeWASocket, { DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import baileys from '@whiskeysockets/baileys';
+const { makeWASocket, DisconnectReason, useMultiFileAuthState } = baileys;
+
 import { Boom }                                              from '@hapi/boom';
 import fs                                                    from 'fs';
 import path                                                  from 'path';

@@ -1,0 +1,6 @@
+GenesisPairBot/
+│
+├── index.js
+├── package.json
+├── session/              <-- (empty folder)
+└── .gitignore
